@@ -17,6 +17,12 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
+
+          if [ ! -f ~/.ssh/id_rsa ]; then
+            echo "❌ Arquivo ~/.ssh/id_rsa não foi criado. Verifique a secret EC2_SSH_KEY."
+            exit 1
+          fi
+
           ssh-keyscan -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
           echo "🔐 SHA256 Checksum of SSH Key:"
