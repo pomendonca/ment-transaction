@@ -1,4 +1,4 @@
-name: 🚀 Deploy para EC2
+name: Deploy to EC2
 
 on:
   push:
@@ -10,44 +10,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: ⏬ Checkout do código
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: ☕ Instala Java e Maven
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: 🔨 Build do projeto
-        run: mvn clean install -DskipTests
-
-      - name: 🔑 Configura chave SSH
+      - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
+          echo "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
 
-          if [ ! -f ~/.ssh/id_rsa ]; then
-            echo "❌ Arquivo ~/.ssh/id_rsa não foi criado. Verifique a secret EC2_SSH_KEY."
-            exit 1
-          fi
+      - name: Build .jar
+        run: ./mvnw clean install -DskipTests
 
-          ssh-keyscan -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-
-      - name: 🔍 Verifica arquivos antes do SCP
+      - name: Copy files to EC2
         run: |
-          echo "Arquivos na raiz:"
-          ls -l
-          echo "Arquivos no target:"
-          ls -l target
-          echo "Arquivos em src/main/resources/docker-compose:"
-          ls -l src/main/resources/docker-compose
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+            target/ment-transaction.jar \
+            Dockerfile \
+            ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/
 
-      - name: 📦 Envia arquivos via SCP para EC2
+      - name: SSH and run Docker commands
         run: |
-          scp -P ${{ secrets.EC2_PORT }} -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
-            ./target/*.jar \
-            ./Dockerfile \
-            ./src/main/resources/docker-compose/docker-compose.yml \
-            ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
+            docker stop ment-transaction || true
+            docker rm ment-transaction || true
+            docker build -t ment-transaction -f Dockerfile .
+            docker run -d --name ment-transaction -p 8080:8080 ment-transaction
+          EOF
