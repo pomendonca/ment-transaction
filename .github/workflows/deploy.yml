@@ -12,24 +12,24 @@ jobs:
       - name: Checkout do repositório
         uses: actions/checkout@v4
 
-      - name: 🔐 Configurar chave SSH para EC2
+      - name: 🔐 Configurar chave SSH para EC2 com debug
         run: |
           echo "📁 Criando diretório ~/.ssh"
           mkdir -p ~/.ssh
-          
-          echo "📝 Escrevendo chave privada no arquivo ~/.ssh/id_rsa"
+
+          echo "📝 Gravando chave privada no arquivo ~/.ssh/id_rsa"
           printf "%s\n" "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
 
-          echo "🔒 Ajustando permissões da chave privada"
+          echo "🔒 Ajustando permissões da chave"
           chmod 600 ~/.ssh/id_rsa
 
-          echo "✅ Verificando se o arquivo foi criado"
+          echo "✅ Verificando existência do arquivo"
           if [ ! -f ~/.ssh/id_rsa ]; then
             echo "❌ Arquivo ~/.ssh/id_rsa não foi criado. Verifique a secret EC2_SSH_KEY."
             exit 1
           fi
 
-          echo "📋 Conteúdo real da chave privada:"
+          echo "📋 Conteúdo completo da chave (com quebras de linha):"
           cat ~/.ssh/id_rsa | sed 's/./& /g'
 
           echo "🔐 SHA256 Checksum da chave:"
@@ -41,7 +41,7 @@ jobs:
           echo "📋 Últimas 5 linhas da chave:"
           tail -n 5 ~/.ssh/id_rsa | sed 's/./& /g'
 
-          echo "🌐 Registrando host da EC2 no known_hosts"
+          echo "🌐 Adicionando host da EC2 ao known_hosts"
           ssh-keyscan -p ${{ secrets.EC2_SSH_PORT }} ${{ secrets.EC2_SSH_HOST }} >> ~/.ssh/known_hosts
 
       - name: Test SSH Connection
