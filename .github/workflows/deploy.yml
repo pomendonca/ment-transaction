@@ -30,28 +30,23 @@ jobs:
             exit 1
           fi
 
+      - name: 🔨 Criar diretório no EC2
+        run: |
+          ssh -i ~/.ssh/id_rsa -p ${{ secrets.EC2_PORT }} -o StrictHostKeyChecking=no \
+          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "mkdir -p /home/ubuntu/ment-transaction"
+
       - name: 📦 Enviando código para EC2 via SCP
         run: |
-          # Subir o diretório raiz do projeto para /home/ubuntu/ment-transaction no EC2
           scp -P ${{ secrets.EC2_PORT }} -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -r ./ \
           ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/ment-transaction
 
-      - name: 🧪 Executando build e deploy remoto na EC2
+      - name: 🧪 Build e run Docker no EC2
         run: |
           ssh -i ~/.ssh/id_rsa -p ${{ secrets.EC2_PORT }} -o StrictHostKeyChecking=no \
-          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
             cd /home/ubuntu/ment-transaction
-            echo "✅ Diretório atual:"
-            pwd
-          
-            echo "🧹 Limpando containers antigos e imagem anterior"
-            docker container stop ment-transaction || true
-            docker container rm ment-transaction || true
-            docker image rm ment-transaction || true
-          
-            echo "📦 Construindo imagem Docker com Dockerfile"
             docker build -t ment-transaction .
-          
-            echo "🚀 Rodando container em background na porta 8080"
+            docker stop ment-transaction || true
+            docker rm ment-transaction || true
             docker run -d --name ment-transaction -p 8080:8080 ment-transaction
           EOF
