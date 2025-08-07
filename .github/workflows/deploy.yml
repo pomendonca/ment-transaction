@@ -21,7 +21,7 @@ jobs:
           echo "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Build .jar
-        run: ./mvnw clean install -DskipTests
+        run: ./mvn clean install -DskipTests
 
       - name: Copy files to EC2
         run: |
