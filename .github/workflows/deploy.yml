@@ -1,4 +1,4 @@
-name: Deploy to EC2
+name: 🚀 Deploy para EC2
 
 on:
   push:
@@ -10,31 +10,48 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: 📥 Checkout do código
         uses: actions/checkout@v4
 
-      - name: Setup SSH
+      - name: 📝 Escrevendo chave privada (SSH)
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          cat << 'EOF' > ~/.ssh/id_rsa
+          ${{ secrets.EC2_SSH_KEY }}
+          EOF
           chmod 600 ~/.ssh/id_rsa
-          echo "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Build .jar
-        run: ./mvn clean install -DskipTests
-
-      - name: Copy files to EC2
+      - name: 🔐 Adiciona host ao known_hosts
         run: |
-          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
-            target/ment-transaction.jar \
-            Dockerfile \
-            ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/
+          if [ -n "${{ secrets.EC2_HOST }}" ] && [ -n "${{ secrets.EC2_PORT }}" ]; then
+            ssh-keyscan -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          else
+            echo "❌ Host ou porta SSH não definidos"
+            exit 1
+          fi
 
-      - name: SSH and run Docker commands
+      - name: 📦 Enviando código para EC2 via SCP
         run: |
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
-            docker stop ment-transaction || true
-            docker rm ment-transaction || true
-            docker build -t ment-transaction -f Dockerfile .
+          # Subir o diretório raiz do projeto para /home/ubuntu/ment-transaction no EC2
+          scp -P ${{ secrets.EC2_PORT }} -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -r ./ \
+          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/ment-transaction
+
+      - name: 🧪 Executando build e deploy remoto na EC2
+        run: |
+          ssh -i ~/.ssh/id_rsa -p ${{ secrets.EC2_PORT }} -o StrictHostKeyChecking=no \
+          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            cd /home/ubuntu/ment-transaction
+            echo "✅ Diretório atual:"
+            pwd
+          
+            echo "🧹 Limpando containers antigos e imagem anterior"
+            docker container stop ment-transaction || true
+            docker container rm ment-transaction || true
+            docker image rm ment-transaction || true
+          
+            echo "📦 Construindo imagem Docker com Dockerfile"
+            docker build -t ment-transaction .
+          
+            echo "🚀 Rodando container em background na porta 8080"
             docker run -d --name ment-transaction -p 8080:8080 ment-transaction
           EOF
