@@ -26,8 +26,8 @@ jobs:
 
       - name: 🔐 Adiciona host ao known_hosts
         run: |
-          if [ -n "${{ secrets.EC2_SSH_HOST }}" ] && [ -n "${{ secrets.EC2_SSH_PORT }}" ]; then
-            ssh-keyscan -p ${{ secrets.EC2_SSH_PORT }} ${{ secrets.EC2_SSH_HOST }} >> ~/.ssh/known_hosts
+          if [ -n "${{ secrets.EC2_HOST }}" ] && [ -n "${{ secrets.EC2_PORT }}" ]; then
+            ssh-keyscan -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
           else
             echo "❌ Host ou porta SSH não definidos"
             exit 1
@@ -35,14 +35,14 @@ jobs:
 
       - name: 📦 Enviando arquivos para EC2 via SCP
         run: |
-          scp -P ${{ secrets.EC2_SSH_PORT }} -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+          scp -P ${{ secrets.EC2_PORT }} -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
           -r ./caminho/para/seus/arquivos \
-          ${{ secrets.EC2_SSH_USER }}@${{ secrets.EC2_SSH_HOST }}:/caminho/destino
+          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/caminho/destino
 
       - name: 🧪 Executando comando remoto na EC2
         run: |
-          ssh -i ~/.ssh/id_rsa -p ${{ secrets.EC2_SSH_PORT }} -o StrictHostKeyChecking=no \
-          ${{ secrets.EC2_SSH_USER }}@${{ secrets.EC2_SSH_HOST }} << 'EOF'
+          ssh -i ~/.ssh/id_rsa -p ${{ secrets.EC2_PORT }} -o StrictHostKeyChecking=no \
+          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
             echo "✅ Conectado com sucesso!"
             # cd /caminho/do/app
             # docker compose down && docker compose up -d --build
