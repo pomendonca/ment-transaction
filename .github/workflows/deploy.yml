@@ -14,9 +14,9 @@ jobs:
 
       - name: Setup SSH key and debug
         run: |
+          mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          mkdir -p ~/.ssh
           ssh-keyscan -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
           echo "🔐 SHA256 Checksum of SSH Key:"
