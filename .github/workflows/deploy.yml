@@ -1,61 +1,49 @@
-name: Deploy to EC2
+name: 🚀 Deploy para EC2
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout do repositório
+      - name: 📥 Checkout do código
         uses: actions/checkout@v4
 
-      - name: 🔐 Configurar chave SSH para EC2 com debug
+      - name: 📝 Escrevendo chave privada (SSH)
         run: |
-          echo "📁 Criando diretório ~/.ssh"
           mkdir -p ~/.ssh
 
-          echo "📝 Gravando chave privada no arquivo ~/.ssh/id_rsa"
-          printf "%s\n" "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
-
-          echo "🔒 Ajustando permissões da chave"
+          # Usa heredoc corretamente com indentação alinhada
+          cat << 'EOF' > ~/.ssh/id_rsa
+          ${{ secrets.EC2_SSH_KEY }}
+          EOF
+          
           chmod 600 ~/.ssh/id_rsa
 
-          echo "✅ Verificando existência do arquivo"
-          if [ ! -f ~/.ssh/id_rsa ]; then
-            echo "❌ Arquivo ~/.ssh/id_rsa não foi criado. Verifique a secret EC2_SSH_KEY."
+      - name: 🔐 Adiciona host ao known_hosts
+        run: |
+          if [ -n "${{ secrets.EC2_SSH_HOST }}" ] && [ -n "${{ secrets.EC2_SSH_PORT }}" ]; then
+            ssh-keyscan -p ${{ secrets.EC2_SSH_PORT }} ${{ secrets.EC2_SSH_HOST }} >> ~/.ssh/known_hosts
+          else
+            echo "❌ Host ou porta SSH não definidos"
             exit 1
           fi
 
-          echo "📋 Conteúdo completo da chave (com quebras de linha):"
-          cat ~/.ssh/id_rsa | sed 's/./& /g'
-
-          echo "🔐 SHA256 Checksum da chave:"
-          sha256sum ~/.ssh/id_rsa
-
-          echo "📋 Primeiras 5 linhas da chave:"
-          head -n 5 ~/.ssh/id_rsa | sed 's/./& /g'
-
-          echo "📋 Últimas 5 linhas da chave:"
-          tail -n 5 ~/.ssh/id_rsa | sed 's/./& /g'
-
-          echo "🌐 Adicionando host da EC2 ao known_hosts"
-          ssh-keyscan -p ${{ secrets.EC2_SSH_PORT }} ${{ secrets.EC2_SSH_HOST }} >> ~/.ssh/known_hosts
-
-      - name: Test SSH Connection
+      - name: 📦 Enviando arquivos para EC2 via SCP
         run: |
-          ssh -i ~/.ssh/id_rsa -p ${{ secrets.EC2_PORT }} -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "echo ✅ SSH connected successfully"
+          scp -P ${{ secrets.EC2_SSH_PORT }} -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+          -r ./caminho/para/seus/arquivos \
+          ${{ secrets.EC2_SSH_USER }}@${{ secrets.EC2_SSH_HOST }}:/caminho/destino
 
-      - name: Copy project to EC2
+      - name: 🧪 Executando comando remoto na EC2
         run: |
-          rsync -avz -e "ssh -i ~/.ssh/id_rsa -p ${{ secrets.EC2_PORT }}" ./ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ec2-user/${{ github.event.repository.name }}
-
-      - name: Deploy with Docker Compose
-        run: |
-          ssh -i ~/.ssh/id_rsa -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            cd /home/ec2-user/${{ github.event.repository.name }}
-            docker-compose down
-            docker-compose up --build -d
+          ssh -i ~/.ssh/id_rsa -p ${{ secrets.EC2_SSH_PORT }} -o StrictHostKeyChecking=no \
+          ${{ secrets.EC2_SSH_USER }}@${{ secrets.EC2_SSH_HOST }} << 'EOF'
+            echo "✅ Conectado com sucesso!"
+            # cd /caminho/do/app
+            # docker compose down && docker compose up -d --build
           EOF
