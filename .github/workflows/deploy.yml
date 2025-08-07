@@ -9,30 +9,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
 
-      - name: Setup SSH key and debug
+      - name: 🔐 Configurar chave SSH para EC2
         run: |
+          echo "📁 Criando diretório ~/.ssh"
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          
+          echo "📝 Escrevendo chave privada no arquivo ~/.ssh/id_rsa"
+          printf "%s\n" "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+
+          echo "🔒 Ajustando permissões da chave privada"
           chmod 600 ~/.ssh/id_rsa
 
+          echo "✅ Verificando se o arquivo foi criado"
           if [ ! -f ~/.ssh/id_rsa ]; then
             echo "❌ Arquivo ~/.ssh/id_rsa não foi criado. Verifique a secret EC2_SSH_KEY."
             exit 1
           fi
 
-          ssh-keyscan -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          echo "📋 Conteúdo real da chave privada:"
+          cat ~/.ssh/id_rsa | sed 's/./& /g'
 
-          echo "🔐 SHA256 Checksum of SSH Key:"
+          echo "🔐 SHA256 Checksum da chave:"
           sha256sum ~/.ssh/id_rsa
 
-          echo "📋 First 5 lines of SSH Key (debug):"
+          echo "📋 Primeiras 5 linhas da chave:"
           head -n 5 ~/.ssh/id_rsa | sed 's/./& /g'
 
-          echo "📋 Last 5 lines of SSH Key (debug):"
+          echo "📋 Últimas 5 linhas da chave:"
           tail -n 5 ~/.ssh/id_rsa | sed 's/./& /g'
+
+          echo "🌐 Registrando host da EC2 no known_hosts"
+          ssh-keyscan -p ${{ secrets.EC2_SSH_PORT }} ${{ secrets.EC2_SSH_HOST }} >> ~/.ssh/known_hosts
 
       - name: Test SSH Connection
         run: |
