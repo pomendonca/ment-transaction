@@ -10,40 +10,44 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📥 Checkout do código
-        uses: actions/checkout@v4
+      - name: ⏬ Checkout do código
+        uses: actions/checkout@v3
 
-      - name: 📝 Escrevendo chave privada (SSH)
+      - name: ☕ Instala Java e Maven
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: 🔨 Build do projeto
+        run: mvn clean install -DskipTests
+
+      - name: 🔑 Configura chave SSH
         run: |
           mkdir -p ~/.ssh
-
-          # Usa heredoc corretamente com indentação alinhada
-          cat << 'EOF' > ~/.ssh/id_rsa
-          ${{ secrets.EC2_SSH_KEY }}
-          EOF
-          
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-      - name: 🔐 Adiciona host ao known_hosts
-        run: |
-          if [ -n "${{ secrets.EC2_HOST }}" ] && [ -n "${{ secrets.EC2_PORT }}" ]; then
-            ssh-keyscan -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-          else
-            echo "❌ Host ou porta SSH não definidos"
+          if [ ! -f ~/.ssh/id_rsa ]; then
+            echo "❌ Arquivo ~/.ssh/id_rsa não foi criado. Verifique a secret EC2_SSH_KEY."
             exit 1
           fi
 
-      - name: 📦 Enviando arquivos para EC2 via SCP
+          ssh-keyscan -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: 🔍 Verifica arquivos antes do SCP
+        run: |
+          echo "Arquivos na raiz:"
+          ls -l
+          echo "Arquivos no target:"
+          ls -l target
+          echo "Arquivos em src/main/resources/docker-compose:"
+          ls -l src/main/resources/docker-compose
+
+      - name: 📦 Envia arquivos via SCP para EC2
         run: |
           scp -P ${{ secrets.EC2_PORT }} -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
-          -r ./caminho/para/seus/arquivos \
-          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/caminho/destino
-
-      - name: 🧪 Executando comando remoto na EC2
-        run: |
-          ssh -i ~/.ssh/id_rsa -p ${{ secrets.EC2_PORT }} -o StrictHostKeyChecking=no \
-          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            echo "✅ Conectado com sucesso!"
-            # cd /caminho/do/app
-            # docker compose down && docker compose up -d --build
-          EOF
+            ./target/*.jar \
+            ./Dockerfile \
+            ./src/main/resources/docker-compose/docker-compose.yml \
+            ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/
