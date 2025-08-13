@@ -1,4 +1,4 @@
-name: 🚀 Deploy para EC2
+name: 🚀 Deploy ment-transaction
 
 on:
   push:
@@ -13,7 +13,11 @@ jobs:
       - name: 📥 Checkout do código
         uses: actions/checkout@v4
 
-      - name: 📝 Escrevendo chave privada (SSH)
+      - name: 🧱 Build Docker image
+        run: |
+          docker build -t ment-transaction .
+
+      - name: 📝 Criando chave privada SSH
         run: |
           mkdir -p ~/.ssh
           cat << 'EOF' > ~/.ssh/id_rsa
@@ -21,32 +25,30 @@ jobs:
           EOF
           chmod 600 ~/.ssh/id_rsa
 
-      - name: 🔐 Adiciona host ao known_hosts
+      - name: 🔐 Adicionando host ao known_hosts
         run: |
-          if [ -n "${{ secrets.EC2_HOST }}" ] && [ -n "${{ secrets.EC2_PORT }}" ]; then
-            ssh-keyscan -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-          else
-            echo "❌ Host ou porta SSH não definidos"
-            exit 1
-          fi
+          ssh-keyscan -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: 🔨 Criar diretório no EC2
+      - name: 📦 Enviando imagem Docker para EC2
+        run: |
+          # Salva imagem local em tar
+          docker save ment-transaction | bzip2 > ment-transaction.tar.bz2
+
+          # Copia para EC2
+          scp -P ${{ secrets.EC2_PORT }} -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+          ment-transaction.tar.bz2 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ec2-user/ment/
+
+      - name: 🐳 Rodando container na EC2
         run: |
           ssh -i ~/.ssh/id_rsa -p ${{ secrets.EC2_PORT }} -o StrictHostKeyChecking=no \
-          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "mkdir -p /home/ec2-user/ment-transaction"
-
-      - name: 📦 Enviando código para EC2 via SCP
-        run: |
-          scp -P ${{ secrets.EC2_PORT }} -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -r ./ \
-          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ec2-user/ment-transaction
-
-      - name: 🧪 Build e run Docker no EC2
-        run: |
-          ssh -i ~/.ssh/id_rsa -p ${{ secrets.EC2_PORT }} -o StrictHostKeyChecking=no \
-          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
-            cd /home/ec2-user/ment-transaction
-            docker build -t ment-transaction .
-            docker stop ment-transaction || true
-            docker rm ment-transaction || true
+          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            cd /home/ec2-user/ment
+            # Remove container antigo, se existir
+            docker rm -f ment-transaction || true
+            # Remove imagem antiga
+            docker rmi ment-transaction || true
+            # Carrega a imagem enviada
+            bzip2 -dc ment-transaction.tar.bz2 | docker load
+            # Roda container
             docker run -d --name ment-transaction -p 8080:8080 ment-transaction
           EOF
